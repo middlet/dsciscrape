@@ -1,4 +1,4 @@
 dsciscrape
 ==========
 
-scape jobs to find the keywords
+scrape jobs to find the keywords
