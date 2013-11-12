@@ -1,31 +1,75 @@
 #!/usr/bin/env python
 
 import codecs
-import BeautifulSoup as bs
+import xml.etree.ElementTree as ET
 import requests
+import sqlite3
+import os.path
 
-def all_scrape(site, search):
-	for i in range(0,100,10):
-		url = '%s%s&start=%d' % (site, search, i)
-		scrape(site, url)
+from datetime import datetime
 
-def scrape(site, url):
-	"""
-	get all the urls on the page
-	"""
-	count = 0
-	r = requests.get(url)
-	soup = bs.BeautifulSoup(r.text)
-	for link in soup.body.findAll(target='_blank'):
-		l = link.get('href')
-		if l.find('/rc/clk?')>=0:
-			print site+l
-			r = requests.get(str(site+l))
-			f = codecs.open('./out/%05d.html'%count, 'w', 'utf8')
-			f.write(r.text)
-			f.close()
-			count += 1
+def create_new_db(dbname):
+    """
+    create a database if required
+    """
+    if os.path.isfile(dbname):
+        return
+    conn = sqlite3.connect(dbname)
+    c = conn.cursor()
+    c.execute('''create table jobs (id integer primary key, pub_date timestamp, title string, link string, unique(pub_date, title, link))''')
+    conn.close()
+
+def download_ad(link, pubdate):
+    """
+    get the job ad from the link
+    """
+    r = requests.get(link)
+    if r.status_code!=200:
+        print 'cannot download'
+        return
+    html = r.text
+
+    if not os.path.isdir('./html'):
+        os.mkdir('./html')
+
+    fname = './html/%s' % pubdate.strftime('%Y%m%d%H%M%S.html')
+    if os.path.isfile(fname):
+        print 'file exists :', fname
+        return
+
+    f = codecs.open(fname, 'w', 'utf8')
+    f.write(html)
+    f.close()
+
+
+
+
+def find_new_jobs(dbname):
+    """
+    grab the rss feed and see if there are any new jobs in there
+    """
+    create_new_db(dbname)
+    conn = sqlite3.connect(dbname)
+    c = conn.cursor()
+
+    url = "http://www.jobsite.co.uk/cgi-bin/advsearch?rss_feed=1&skill_include=&quot;data%20scientist&quot;&job_title_include=%22data%20scientist%22&daysback=50&scc=UK"
+    r = requests.get(url)
+    rss = r.text
+    root = ET.fromstring(rss)
+    for ei in root.findall('./channel/item'):
+        title = ei.find('title').text
+        link = ei.find('link').text
+        pubdate = datetime.strptime(ei.find('pubDate').text, '%a, %d %b %Y %H:%M:%S %Z')
+        c.execute("insert or ignore into jobs values(NULL, ?, ?, ?)", (pubdate, title, link))
+        download_ad(link, pubdate)
+    conn.commit()
+    conn.close()
+
+
+
+
 
 
 if __name__ == '__main__':
-	all_scrape('http://www.indeed.co.uk/', 'jobs?q=Data+Scientist')
+    find_new_jobs('./jobs.sq3')
+
