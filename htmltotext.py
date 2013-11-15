@@ -5,6 +5,7 @@ recurse the html directory and extract the parts of the job of interest
 """
 
 import os
+import sys
 
 import BeautifulSoup
 
@@ -18,18 +19,32 @@ def process(fname):
     f.close()
     # parse replacing entities
     soup = BeautifulSoup.BeautifulSoup(text, convertEntities=BeautifulSoup.BeautifulStoneSoup.HTML_ENTITIES)
-    ad = soup.find(id='lineage-container')
-    comment = u' market_dscrpn OR job_dscrpn comes here '
+
     otext = ''
-    for ai in ad.findAll('p'):
-        # remove all comments
-        comments = ai.findAll(text=lambda text:isinstance(text, BeautifulSoup.Comment))
-        for ci in comments:
-            ci.extract()
-        # remove <br />
-        for item in ai.contents:
-            if str(item)!='<br />':
-                otext += str(item)+"\n"
+    if soup.find(id='vacancyMain'):
+        ad = soup.find(id='vacancyMain')
+        for si in ad.findAll('div', {'class':'infoBox1'}):
+            si.extract()
+        for si in ad.findAll(id='vacPlacedBy'):
+            si.extract()
+        for si in ad.findAll('a'):
+            si.extract()
+        otext = ad.text
+    else:
+        ad = soup.find(id='lineage-container')
+        comment = u' market_dscrpn OR job_dscrpn comes here '
+        try:
+            for ai in ad.findAll('p'):
+                # remove all comments
+                comments = ai.findAll(text=lambda text:isinstance(text, BeautifulSoup.Comment))
+                for ci in comments:
+                    ci.extract()
+                # remove <br />
+                for item in ai.contents:
+                    if str(item)!='<br />':
+                        otext += str(item)+"\n"
+        except:
+            print 'error :', fname
     #
     return otext.strip()
 
@@ -39,6 +54,9 @@ def save_text(text, fname):
     """
     save the results of the conversion to a text file
     """
+    if len(text)==0:
+        return
+
     if not os.path.isdir('./text'):
         os.mkdir('./text')
 
