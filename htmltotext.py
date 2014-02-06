@@ -4,7 +4,10 @@
 recurse the html directory and extract the parts of the job of interest
 """
 
+from datetime import datetime
+
 import os
+import sqlite3
 import sys
 
 import BeautifulSoup
@@ -44,23 +47,25 @@ def process(fname):
                     if str(item)!='<br />':
                         otext += str(item)+"\n"
         except:
-            print 'error :', fname
+            print('error :', fname)
     #
     return otext.strip()
 
 
 
-def save_text(text, fname):
+def save_text(text, fname, qtype):
     """
     save the results of the conversion to a text file
     """
     if len(text)==0:
         return
 
-    if not os.path.isdir('./text'):
-        os.mkdir('./text')
+    qtype = qtype.replace(' ', '_')
 
-    ofname = './text/%s' % fname[:-5]
+    if not os.path.isdir('./text/%s' % qtype):
+        os.mkdir('./text/%s' % qtype)
+
+    ofname = './text/%s/%s' % (qtype, fname[:-5])
 
     # dont overwrite if the file exists
     if os.path.isfile(ofname):
@@ -72,18 +77,42 @@ def save_text(text, fname):
 
 
 
-def convert(dname):
+def convert(dname, qtype):
     """
     convert an html file used by jobsite to a text description of the job
+    separate into separate directories for different queries
     """
-    for fi in os.listdir(dname):
-        print fi
-        fname = '%s/%s' % (dname, fi)
-        text = process(fname)
-        save_text(text, fi)
+    conn = sqlite3.connect('./jobs.sq3')
+    c = conn.cursor()
+    c.execute("select * from jobs where keywords='%s';" % (qtype))
+    for ri in c.fetchall():
+        dt, link = ri[1], ri[4]
+        pubdate = datetime.strptime(dt, '%Y-%m-%d %H:%M:%S')
+        pos = link.find('?')
+        uid = link[pos-9:pos]
+        fname = './html/%s_%s.html' % (uid, pubdate.strftime('%Y%m%d%H%M%S'))
+        ofname = '%s_%s.html' % (uid, pubdate.strftime('%Y%m%d%H%M%S'))
+        try:
+            text = process(fname)
+            print qtype, ofname
+            save_text(text, ofname, qtype)
+        except IOError:
+            print '\tnot found'
+    conn.close()
+
+
+
+    #for fi in os.listdir(dname):
+    #    print(fi)
+
+        #fname = '%s/%s' % (dname, fi)
+        #text = process(fname)
+        #save_text(text, fi)
 
 
 
 if __name__ == '__main__':
-    convert('./html')
+    #convert('./html', 'big data')
+    convert('./html', 'data scientist')
+
 

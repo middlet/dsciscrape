@@ -56,4 +56,4 @@ def get_keywords(dname):
 
 
 if __name__ == '__main__':
-    get_keywords('./text')
+    get_keywords('./text/data_scientist')
